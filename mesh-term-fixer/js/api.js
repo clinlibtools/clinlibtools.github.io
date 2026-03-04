@@ -817,6 +817,17 @@ export async function fetchTermDetails(ui) {
 }
 
 /**
+ * Look up historical changes for terms not found in the current vocabulary.
+ * Searches all change endpoints (replace, rename, delete, merge) across all years.
+ * @param {string[]} terms - Term names to look up
+ * @returns {Promise<Map<string, Change[]>>} Map from term (lowercase) to historical changes
+ */
+export async function lookupTermHistory(terms) {
+  if (terms.length === 0) return new Map();
+  return checkTerms(terms, null);
+}
+
+/**
  * Clear all mesh-fixer cache entries from localStorage.
  * Run from console: meshFixerClearCache()
  */

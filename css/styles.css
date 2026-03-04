@@ -404,6 +404,7 @@ header p {
 
 .preview-line {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.05rem 0.5rem;
   position: relative;
@@ -504,6 +505,31 @@ header p {
 .line-content[contenteditable]:focus {
   background: rgba(13, 110, 253, 0.1);
   box-shadow: 0 0 0 1px var(--primary);
+}
+
+/* Line warning icon */
+.line-warning-icon {
+  color: var(--warning);
+  cursor: default;
+  margin-left: 0.4rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.line-warning-tooltip {
+  display: none;
+  position: fixed;
+  background: #333;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 0.4rem 0.65rem;
+  border-radius: 4px;
+  max-width: 360px;
+  white-space: normal;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
 /* Add line button */

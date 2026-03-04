@@ -3,7 +3,7 @@
  * Renders change cards and a live diff preview of the strategy.
  */
 
-import { resolveTermUIs, fetchTreeContext, checkHasChildren, fetchTermDetails, fetchCategoryChildren } from './api.js';
+import { resolveTermUIs, fetchTreeContext, checkHasChildren, fetchTermDetails, fetchCategoryChildren, lookupTermHistory } from './api.js';
 import { validateSyntax, validateTermExistence } from './validator.js';
 
 /**
@@ -142,6 +142,8 @@ export function renderReview(parsedLines, changes, onUpdate, suggestions, opts) 
       }
       // Re-render preview so links use direct UIs
       renderPreview();
+      // Validate qualifiers now that UIs are resolved
+      validateQualifiers();
     }).catch(() => {});
   }
 }
@@ -344,6 +346,9 @@ function renderNotFoundCards() {
   const container = document.getElementById('change-cards');
   // Append after existing change cards (don't clear — renderChangeCards already ran)
 
+  // Collect not-found term names for history lookup
+  const nfTermNames = currentNotFound.map(nf => nf.term);
+
   for (const nf of currentNotFound) {
     const card = document.createElement('div');
     card.className = 'change-card change-notfound';
@@ -355,7 +360,7 @@ function renderNotFoundCards() {
       </div>
       <div class="card-body">
         <div class="old-term">${escapeHTML(nf.term)}</div>
-        <div class="card-note">This term was not found in the current MeSH vocabulary. Check for typos or use a valid term.</div>
+        <div class="card-note notfound-history">Checking history\u2026</div>
       </div>
     `;
 
@@ -368,6 +373,41 @@ function renderNotFoundCards() {
     addCardHighlight(card, nf.lineNums);
 
     container.appendChild(card);
+  }
+
+  // Look up historical changes for all not-found terms
+  if (nfTermNames.length > 0) {
+    lookupTermHistory(nfTermNames).then(historyMap => {
+      for (const nf of currentNotFound) {
+        const card = container.querySelector(`.change-card[data-term-key="${nf.termKey}"]`);
+        if (!card) continue;
+        const noteEl = card.querySelector('.notfound-history');
+        if (!noteEl) continue;
+
+        const history = historyMap.get(nf.termKey);
+        if (history && history.length > 0) {
+          // Sort by year descending to show most recent change first
+          history.sort((a, b) => (b.year || '').localeCompare(a.year || ''));
+          const latest = history[0];
+          let msg = `This term was ${latest.type} in ${latest.year}`;
+          if (latest.replacements && latest.replacements.length > 0) {
+            const names = latest.replacements.map(r => r.name).join(', ');
+            msg += ` \u2192 ${names}`;
+          }
+          msg += '. It is no longer in the current MeSH vocabulary.';
+          noteEl.textContent = msg;
+        } else {
+          noteEl.textContent = 'This term was not found in the current MeSH vocabulary or in historical change records. Check for typos.';
+        }
+      }
+    }).catch(() => {
+      // On failure, fall back to generic message
+      for (const noteEl of container.querySelectorAll('.notfound-history')) {
+        if (noteEl.textContent === 'Checking history\u2026') {
+          noteEl.textContent = 'This term was not found in the current MeSH vocabulary. Check for typos or use a valid term.';
+        }
+      }
+    });
   }
 }
 
@@ -572,6 +612,8 @@ function renderPreview() {
     const display = hasEdit ? lineEdits.get(line.lineNum) : effective;
     const changed = display !== line.raw; // differs from original input
 
+    const lineWarnings = validationsByLine.get(line.lineNum) || [];
+
     if (isManuallyRemoved) {
       // Skip removed lines entirely
     } else if (changed) {
@@ -580,6 +622,7 @@ function renderPreview() {
         removable: isMesh ? line.lineNum : null,
         editable: true,
         lineRef: line.lineNum,
+        warnings: lineWarnings,
       }));
     } else {
       // Unchanged — show as-is, editable
@@ -588,6 +631,7 @@ function renderPreview() {
         removable: isMesh ? line.lineNum : null,
         editable: true,
         lineRef: line.lineNum,
+        warnings: lineWarnings,
       }));
     }
 
@@ -601,11 +645,6 @@ function renderPreview() {
       }
     }
 
-    // Append validation annotations for this line
-    if (!isManuallyRemoved) {
-      appendValidationAnnotations(container, line.lineNum);
-    }
-
     // Render any lines inserted after this original line
     for (const ins of (insertionsAfter.get(line.lineNum) || [])) {
       container.appendChild(makeLine(displayNum++, ins.content, 'added', { editable: true, insertedRef: ins }));
@@ -614,8 +653,8 @@ function renderPreview() {
 
   // Added terms from suggestions
   if (addedTerms.length > 0) {
-    addedTerms.forEach((at) => {
-      container.appendChild(makeLine(displayNum++, `${at.name}/`, 'added', {}));
+    addedTerms.forEach((at, i) => {
+      container.appendChild(makeLine(displayNum++, `${at.name}/`, 'added', { editable: true, addedTermIndex: i }));
     });
   }
 
@@ -694,6 +733,18 @@ function makeLine(lineNum, content, style, opts) {
       if (onDecisionChange) onDecisionChange();
     });
     lineEl.appendChild(btn);
+  } else if (opts.addedTermIndex != null) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-line-action btn-line-remove';
+    btn.textContent = '×';
+    btn.title = 'Delete this line';
+    btn.style.opacity = '1';
+    btn.addEventListener('click', () => {
+      addedTerms.splice(opts.addedTermIndex, 1);
+      renderPreview();
+      if (onDecisionChange) onDecisionChange();
+    });
+    lineEl.appendChild(btn);
   } else {
     const spacer = document.createElement('span');
     spacer.className = 'btn-line-spacer';
@@ -724,6 +775,8 @@ function makeLine(lineNum, content, style, opts) {
       const newText = contentSpan.textContent.trim();
       if (opts.insertedRef) {
         opts.insertedRef.content = newText;
+      } else if (opts.addedTermIndex != null) {
+        addedTerms[opts.addedTermIndex].name = newText.replace(/\/$/, '');
       } else if (opts.lineRef != null) {
         const origLine = currentParsedLines.find(l => l.lineNum === opts.lineRef);
         const effective = origLine ? getEffectiveContent(origLine) : '';
@@ -747,6 +800,8 @@ function makeLine(lineNum, content, style, opts) {
         const newText = contentSpan.textContent.trim();
         if (opts.insertedRef) {
           opts.insertedRef.content = newText;
+        } else if (opts.addedTermIndex != null) {
+          addedTerms[opts.addedTermIndex].name = newText.replace(/\/$/, '');
         } else if (opts.lineRef != null) {
           const origLine = currentParsedLines.find(l => l.lineNum === opts.lineRef);
           const effective = origLine ? getEffectiveContent(origLine) : '';
@@ -804,6 +859,8 @@ function makeLine(lineNum, content, style, opts) {
         if (opts.insertedRef) {
           const idx = insertedLines.indexOf(opts.insertedRef);
           if (idx >= 0) insertedLines.splice(idx, 1);
+        } else if (opts.addedTermIndex != null) {
+          addedTerms.splice(opts.addedTermIndex, 1);
         } else if (opts.lineRef != null) {
           removedLines.add(opts.lineRef);
         }
@@ -836,6 +893,38 @@ function makeLine(lineNum, content, style, opts) {
 
   lineEl.appendChild(numSpan);
   lineEl.appendChild(contentSpan);
+
+  // Warning indicator at end of line
+  if (opts.warnings && opts.warnings.length > 0) {
+    const warn = document.createElement('span');
+    warn.className = 'line-warning-icon';
+    warn.textContent = '\u26A0';
+    const tipText = opts.warnings.map(w => w.message).join('; ');
+    warn.addEventListener('mouseenter', () => {
+      let tip = document.querySelector('.line-warning-tooltip');
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.className = 'line-warning-tooltip';
+        document.body.appendChild(tip);
+      }
+      tip.textContent = tipText;
+      tip.style.display = 'block';
+      const rect = warn.getBoundingClientRect();
+      // Position below the icon, shifted left so it doesn't overflow the viewport
+      const tipWidth = tip.offsetWidth;
+      let left = rect.left + rect.width / 2 - tipWidth / 2;
+      if (left + tipWidth > window.innerWidth - 8) left = window.innerWidth - tipWidth - 8;
+      if (left < 8) left = 8;
+      tip.style.left = left + 'px';
+      tip.style.top = (rect.bottom + 6) + 'px';
+    });
+    warn.addEventListener('mouseleave', () => {
+      const tip = document.querySelector('.line-warning-tooltip');
+      if (tip) tip.style.display = 'none';
+    });
+    lineEl.appendChild(warn);
+  }
+
   return lineEl;
 }
 
@@ -871,6 +960,12 @@ function getUncheckedTerms() {
   // From inserted lines
   for (const ins of insertedLines) {
     const m = ins.content.match(meshPattern);
+    if (m) allTerms.add(m[1].trim().replace(/^"|"$/g, ''));
+  }
+
+  // From added terms (suggestions)
+  for (const at of addedTerms) {
+    const m = `${at.name}/`.match(meshPattern);
     if (m) allTerms.add(m[1].trim().replace(/^"|"$/g, ''));
   }
 
@@ -920,6 +1015,23 @@ function buildCurrentParsedLines() {
     }
   }
 
+  // Add terms from suggestions
+  for (const at of addedTerms) {
+    const content = `${at.name}/`;
+    const m = content.match(meshPattern);
+    if (m) {
+      lines.push({
+        lineNum: 99999 + lines.length,
+        raw: content,
+        type: 'mesh',
+        exploded: false,
+        focused: false,
+        term: m[3].trim().replace(/^"|"$/g, ''),
+        subheading: m[4].trim() || null,
+      });
+    }
+  }
+
   return lines;
 }
 
@@ -936,6 +1048,75 @@ function revalidateSyntax() {
     if (!validationsByLine.has(v.lineNum)) validationsByLine.set(v.lineNum, []);
     validationsByLine.get(v.lineNum).push({ severity: v.severity, message: v.message });
   }
+}
+
+/**
+ * Check that qualifiers used on MeSH lines are allowable for the descriptor.
+ * Fetches term details (cached) and compares used qualifiers against allowable ones.
+ */
+async function validateQualifiers() {
+  const editedLines = buildCurrentParsedLines();
+  const meshLinesWithQualifiers = editedLines.filter(
+    l => l.type === 'mesh' && l.term && l.subheading
+  );
+  if (meshLinesWithQualifiers.length === 0) return;
+
+  // Deduplicate terms to minimize API calls
+  const termLines = new Map(); // termLower → [lines]
+  for (const line of meshLinesWithQualifiers) {
+    const key = line.term.toLowerCase();
+    if (!termLines.has(key)) termLines.set(key, []);
+    termLines.get(key).push(line);
+  }
+
+  // Resolve UIs for terms we need to check
+  const termsToResolve = [...termLines.keys()].filter(t => !knownUIs.has(t));
+  if (termsToResolve.length > 0) {
+    const resolved = await resolveTermUIs(termsToResolve.map(t => {
+      // Use original casing from the first line
+      return termLines.get(t)[0].term;
+    }));
+    for (const [t, ui] of resolved) knownUIs.set(t, ui);
+  }
+
+  // Fetch details and validate qualifiers
+  const detailsPromises = [];
+  for (const [termLower] of termLines) {
+    const ui = knownUIs.get(termLower);
+    if (!ui) continue;
+    detailsPromises.push(
+      fetchTermDetails(ui).then(details => ({ termLower, details })).catch(() => null)
+    );
+  }
+
+  const results = await Promise.all(detailsPromises);
+  let changed = false;
+
+  for (const result of results) {
+    if (!result || !result.details || !result.details.qualifiers) continue;
+    const { termLower, details } = result;
+    const allowable = new Set(details.qualifiers.map(q => q.abbr));
+    if (allowable.size === 0) continue; // No qualifier data available
+
+    for (const line of termLines.get(termLower)) {
+      const codes = line.subheading.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+      for (const code of codes) {
+        if (!allowable.has(code)) {
+          const qualLabel = details.qualifiers.find(q => q.abbr === code);
+          const msg = `Qualifier "/${code}" is not allowable for ${line.term}`;
+          if (!validationsByLine.has(line.lineNum)) validationsByLine.set(line.lineNum, []);
+          // Avoid duplicates
+          const existing = validationsByLine.get(line.lineNum);
+          if (!existing.some(v => v.message === msg)) {
+            existing.push({ severity: 'warning', message: msg });
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (changed) renderPreview();
 }
 
 /**
@@ -1047,6 +1228,9 @@ async function recheckNewTerms() {
     const spinner = document.querySelector('.recheck-spinner');
     if (spinner) spinner.remove();
   }
+
+  // Validate qualifiers asynchronously (uses cached term details when available)
+  validateQualifiers();
 }
 
 function openInNewTab(url) {
