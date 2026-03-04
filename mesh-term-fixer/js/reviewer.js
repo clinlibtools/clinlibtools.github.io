@@ -1837,6 +1837,22 @@ function renderDetailContent(panel, termName, ui, details, opts = {}) {
     infoSection.appendChild(section);
   }
 
+  // History Note
+  if (details.historyNote) {
+    hasContent = true;
+    const section = document.createElement('div');
+    section.className = 'info-panel-section';
+    const label = document.createElement('div');
+    label.className = 'info-panel-section-label';
+    label.textContent = 'History Note';
+    section.appendChild(label);
+    const note = document.createElement('div');
+    note.className = 'info-panel-annotation';
+    note.textContent = details.historyNote;
+    section.appendChild(note);
+    infoSection.appendChild(section);
+  }
+
   // Entry terms (synonyms)
   if (details.entryTerms.length > 0) {
     hasContent = true;
