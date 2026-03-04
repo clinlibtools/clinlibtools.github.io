@@ -49,7 +49,13 @@ export function generateOutput(parsedLines, decisions, changes, addedTerms, remo
         if (isDeleteOnly) {
           // skip — but still emit insertions after this line below
         } else if (decision.selectedReplacement) {
-          contentLines.push(line.raw.replace(line.term, decision.selectedReplacement));
+          if (decision.keepOld) {
+            // Keep original term and add new term on next line
+            contentLines.push(line.raw);
+            contentLines.push(line.raw.replace(line.term, decision.selectedReplacement));
+          } else {
+            contentLines.push(line.raw.replace(line.term, decision.selectedReplacement));
+          }
         } else {
           contentLines.push(line.raw);
         }

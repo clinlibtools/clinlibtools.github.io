@@ -10,6 +10,7 @@ import { validateSyntax, validateTermExistence } from './validator.js';
  * @typedef {Object} Decision
  * @property {boolean} accepted
  * @property {string|null} selectedReplacement - Chosen replacement name (if multiple)
+ * @property {boolean} keepOld - Keep original term alongside replacement (default true)
  */
 
 /** @type {Map<string, Decision>} keyed by term (lowercase) */
@@ -124,7 +125,7 @@ export function renderReview(parsedLines, changes, onUpdate, suggestions, opts) 
   // Set default decisions (all accepted, first replacement selected)
   for (const [termKey, group] of grouped) {
     const firstReplacement = group.replacements.length > 0 ? group.replacements[0].name : null;
-    decisions.set(termKey, { accepted: true, selectedReplacement: firstReplacement });
+    decisions.set(termKey, { accepted: true, selectedReplacement: firstReplacement, keepOld: true });
   }
 
   renderChangeCards(grouped);
@@ -280,6 +281,10 @@ function renderChangeCards(grouped) {
       <div class="card-body">
         <div class="old-term">${escapeHTML(group.originalTerm)}</div>
         ${replacementHTML}
+        ${group.replacements.length > 0 ? `<label class="keep-old-toggle">
+            <input type="checkbox" class="keep-old-checkbox" data-term-key="${termKey}" ${decision.keepOld ? 'checked' : ''}>
+            <span class="keep-old-label">Keep old term too</span>
+          </label>` : ''}
         ${group.notes.length > 0 ? `<div class="card-note">${escapeHTML(group.notes[0])}</div>` : ''}
       </div>
     `;
@@ -313,6 +318,16 @@ function renderChangeCards(grouped) {
     for (const radio of radios) {
       radio.addEventListener('change', (e) => {
         decisions.get(termKey).selectedReplacement = e.target.value;
+        renderPreview();
+        if (onDecisionChange) onDecisionChange();
+      });
+    }
+
+    // Event: keep-old toggle
+    const keepOldCheckbox = card.querySelector('.keep-old-checkbox');
+    if (keepOldCheckbox) {
+      keepOldCheckbox.addEventListener('change', (e) => {
+        decisions.get(termKey).keepOld = e.target.checked;
         renderPreview();
         if (onDecisionChange) onDecisionChange();
       });
@@ -576,6 +591,16 @@ function renderPreview() {
       }));
     }
 
+    // When keepOld is true and accepted with a replacement, add the new term line
+    if (!isManuallyRemoved && isMesh) {
+      const termKey = line.term.toLowerCase();
+      const decision = decisions.get(termKey);
+      if (decision && decision.accepted && decision.keepOld && decision.selectedReplacement) {
+        const newLine = line.raw.replace(line.term, decision.selectedReplacement);
+        container.appendChild(makeLine(displayNum++, newLine, 'added', {}));
+      }
+    }
+
     // Append validation annotations for this line
     if (!isManuallyRemoved) {
       appendValidationAnnotations(container, line.lineNum);
@@ -820,6 +845,9 @@ function getEffectiveContent(line) {
     const termKey = line.term.toLowerCase();
     const decision = decisions.get(termKey);
     if (decision && decision.accepted && decision.selectedReplacement) {
+      // When keepOld is true, the original line stays unchanged
+      // (the new term line is added separately in renderPreview/generateOutput)
+      if (decision.keepOld) return line.raw;
       return line.raw.replace(line.term, decision.selectedReplacement);
     }
   }
@@ -1605,6 +1633,22 @@ function renderDetailContent(panel, termName, ui, details, opts = {}) {
     const note = document.createElement('div');
     note.className = 'info-panel-annotation';
     note.textContent = details.annotation;
+    section.appendChild(note);
+    infoSection.appendChild(section);
+  }
+
+  // Public MeSH Note
+  if (details.publicMeSHNote) {
+    hasContent = true;
+    const section = document.createElement('div');
+    section.className = 'info-panel-section';
+    const label = document.createElement('div');
+    label.className = 'info-panel-section-label';
+    label.textContent = 'Public MeSH Note';
+    section.appendChild(label);
+    const note = document.createElement('div');
+    note.className = 'info-panel-annotation';
+    note.textContent = details.publicMeSHNote;
     section.appendChild(note);
     infoSection.appendChild(section);
   }

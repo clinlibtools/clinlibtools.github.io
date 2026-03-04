@@ -728,7 +728,7 @@ export async function fetchTermDetails(ui) {
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
     SELECT ?scopeNote ?entryTerm ?qualifierLabel ?qualifierAbbr
-           ?annotation ?previousIndexing ?pharmaLabel ?treeNum ?dateIntroduced WHERE {
+           ?annotation ?previousIndexing ?pharmaLabel ?treeNum ?dateIntroduced ?publicMeSHNote WHERE {
       VALUES ?d { mesh:${ui} }
       OPTIONAL {
         ?d meshv:preferredConcept ?pc .
@@ -753,6 +753,7 @@ export async function fetchTermDetails(ui) {
       }
       OPTIONAL { ?d meshv:treeNumber ?treeNum . }
       OPTIONAL { ?d meshv:dateIntroduced ?dateIntroduced . }
+      OPTIONAL { ?d meshv:publicMeSHNote ?publicMeSHNote . }
     }
     LIMIT 1000
   `;
@@ -767,6 +768,7 @@ export async function fetchTermDetails(ui) {
     let scopeNote = null;
     let annotation = null;
     let dateIntroduced = null;
+    let publicMeSHNote = null;
     const entryTermSet = new Set();
     const qualifierMap = new Map();
     const previousIndexingSet = new Set();
@@ -777,6 +779,7 @@ export async function fetchTermDetails(ui) {
       if (b.scopeNote && !scopeNote) scopeNote = b.scopeNote.value;
       if (b.annotation && !annotation) annotation = b.annotation.value;
       if (b.dateIntroduced && !dateIntroduced) dateIntroduced = b.dateIntroduced.value;
+      if (b.publicMeSHNote && !publicMeSHNote) publicMeSHNote = b.publicMeSHNote.value;
       if (b.entryTerm) entryTermSet.add(b.entryTerm.value);
       if (b.qualifierAbbr && b.qualifierLabel) {
         const abbr = b.qualifierAbbr.value.toLowerCase();
@@ -796,6 +799,7 @@ export async function fetchTermDetails(ui) {
     const result = {
       scopeNote,
       annotation,
+      publicMeSHNote,
       dateIntroduced: dateIntroduced ? dateIntroduced.split('T')[0] : null,
       entryTerms: [...entryTermSet].sort(),
       qualifiers: [...qualifierMap.values()].sort((a, b) => a.abbr.localeCompare(b.abbr)),
@@ -808,7 +812,7 @@ export async function fetchTermDetails(ui) {
     return result;
   } catch (err) {
     console.warn('SPARQL term details query failed:', err);
-    return { scopeNote: null, annotation: null, dateIntroduced: null, entryTerms: [], qualifiers: [], previousIndexing: [], pharmacologicalActions: [], treeNumbers: [] };
+    return { scopeNote: null, annotation: null, publicMeSHNote: null, dateIntroduced: null, entryTerms: [], qualifiers: [], previousIndexing: [], pharmacologicalActions: [], treeNumbers: [] };
   }
 }
 

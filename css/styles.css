@@ -351,6 +351,26 @@ header p {
   font-style: italic;
 }
 
+.keep-old-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+}
+
+.keep-old-toggle input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.keep-old-label {
+  font-weight: 400;
+}
+
 .card-note {
   font-size: 0.75rem;
   color: var(--text-muted);
