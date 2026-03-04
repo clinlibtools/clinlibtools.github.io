@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Librarian Tools</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .tool-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    }
+    .tool-card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.4rem;
+    }
+    .tool-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <span class="nav-current">Clinical Librarian Tools</span>
+  </nav>
+  <header>
+    <h1>Clinical Librarian Tools</h1>
+    <p>Open-source utilities for systematic review and search strategy work</p>
+  </header>
+
+  <div class="container">
+    <div class="tools-grid">
+      <a href="mesh-term-fixer/" class="tool-card">
+        <h2>MeSH Term Fixer</h2>
+        <p>Check your Ovid MEDLINE search strategy against NLM's Annual MeSH Processing updates. Identifies replaced, renamed, deleted, and merged terms with suggested replacements.</p>
+      </a>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    Built by <a href="https://rpep.dev">Ryan Pepper</a>
+  </footer>
+</body>
+</html>

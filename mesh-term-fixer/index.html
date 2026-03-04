@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeSH Term Fixer</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="../" class="nav-home">Clinical Librarian Tools</a>
+    <span class="nav-sep">/</span>
+    <span class="nav-current">MeSH Term Fixer</span>
+  </nav>
+  <header>
+    <h1>MeSH Term Fixer</h1>
+    <p>Check your Ovid MEDLINE search strategy against NLM's Annual MeSH Processing updates</p>
+  </header>
+
+  <div class="container">
+    <!-- Error banner -->
+    <div id="error-banner" class="error-banner"></div>
+
+    <!-- Screen 1: Input -->
+    <div id="screen-input" class="screen active">
+      <div class="input-controls">
+        <select id="year-filter">
+          <option value="">All years (2023–2026)</option>
+          <option value="2026">2026 only</option>
+          <option value="2025">2025 only</option>
+          <option value="2024">2024 only</option>
+          <option value="2023">2023 only</option>
+        </select>
+        <button id="btn-check" class="btn btn-primary" disabled>Check for MeSH Changes</button>
+        <button id="btn-example" class="btn btn-secondary">Load Example</button>
+      </div>
+      <textarea id="strategy-input" placeholder="Paste your Ovid MEDLINE search strategy here..."></textarea>
+    </div>
+
+    <!-- Screen 2: Loading -->
+    <div id="screen-loading" class="screen">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div id="loading-message">Checking terms against NLM databases...</div>
+      </div>
+    </div>
+
+    <!-- Screen 3: Review (inline diff + cards) -->
+    <div id="screen-review" class="screen">
+      <div class="review-columns">
+        <div class="review-main">
+          <div class="review-header">
+            <div>
+              <span id="review-summary" class="review-summary"></span>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <button id="btn-back-input" class="btn btn-secondary">Back to Input</button>
+              <button id="btn-copy" class="btn btn-primary">Copy Updated Strategy</button>
+              <span id="copy-feedback" class="copy-feedback">Copied!</span>
+            </div>
+          </div>
+          <div class="review-layout">
+            <div class="cards-panel" id="change-cards"></div>
+            <div class="preview-panel">
+              <div id="strategy-preview"></div>
+            </div>
+          </div>
+          <!-- Suggestions panel -->
+          <div id="suggestions-panel" class="suggestions-panel" style="display:none;"></div>
+        </div>
+        <div id="detail-panel" class="detail-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    Built by <a href="https://rpep.dev">Ryan Pepper</a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
